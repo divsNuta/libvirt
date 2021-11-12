@@ -355,7 +355,6 @@ testQemuHotplug(const void *data)
     if (keep) {
         test->vm = vm;
     } else {
-        virObjectUnref(vm);
         test->vm = NULL;
     }
     virDomainDeviceDefFree(dev);
