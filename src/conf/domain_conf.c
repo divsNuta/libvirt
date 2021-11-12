@@ -19663,6 +19663,9 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     g_autofree xmlNodePtr *nodes = NULL;
     g_autofree char *tmp = NULL;
     g_autoptr(virDomainDef) def = NULL;
+    long long int used_serial_port_buffer = 0;
+    int isa_serial_count = 0;
+    int next_available_serial_port = 0;
 
     if (!(def = virDomainDefNew(xmlopt)))
         return NULL;
@@ -19897,18 +19900,36 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
                                                        ctxt,
                                                        nodes[i],
                                                        flags);
+
         if (!chr)
             return NULL;
 
-        if (chr->target.port == -1) {
-            int maxport = -1;
-            for (j = 0; j < i; j++) {
-                if (def->serials[j]->target.port > maxport)
-                    maxport = def->serials[j]->target.port;
-            }
-            chr->target.port = maxport + 1;
-        }
         def->serials[def->nserials++] = chr;
+        if (chr->targetModel == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
+            for (j = def->nserials; j > isa_serial_count; j--)
+                def->serials[j] = def->serials[j-1];
+            def->serials[isa_serial_count++] = chr;
+        }
+
+        if (chr->target.port < n && chr->target.port != -1) {
+            if (used_serial_port_buffer & (1<<chr->target.port)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("target port [%d] for already in allocated."),
+                    chr->target.port);
+                return NULL;
+            }
+            used_serial_port_buffer |= 1<<chr->target.port;
+        }
+    }
+
+    for (i = 0; i < n; i++) {
+        if (def->serials[i]->target.port != -1) continue;
+        while (used_serial_port_buffer & (1<<next_available_serial_port) &&
+            next_available_serial_port<256) {
+            next_available_serial_port++;
+        }
+        used_serial_port_buffer |= 1<<next_available_serial_port;
+        def->serials[i]->target.port = next_available_serial_port++;
     }
     VIR_FREE(nodes);
 
