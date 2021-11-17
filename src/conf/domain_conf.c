@@ -19667,6 +19667,7 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     long long int used_serial_port_buffer = 0;
     int isa_serial_count = 0;
     int next_available_serial_port = 0;
+    int max_serial_port = -1;
 
     if (!(def = virDomainDefNew(xmlopt)))
         return NULL;
@@ -19926,6 +19927,10 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
             }
             used_serial_port_buffer |= 1<<chr->target.port;
         }
+
+        // Update max serial port used.
+        if (chr->target.port > max_serial_port)
+            max_serial_port = chr->target.port;
     }
 
     // Assign the ports to the devices.
@@ -19954,13 +19959,12 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
             used_serial_port_buffer |= 1<<next_available_serial_port;
             def->serials[i]->target.port = next_available_serial_port;
 
+            // Update max serial port used.
+            if (def->serials[i]->target.port > max_serial_port)
+                max_serial_port = def->serials[i]->target.port;
+
         } else {
-            int maxport = -1;
-            for (j = 0; j < i; j++) {
-                if (def->serials[j]->target.port > maxport)
-                    maxport = def->serials[j]->target.port;
-            }
-            def->serials[i]->target.port = maxport + 1;
+            def->serials[i]->target.port = ++max_serial_port;
         }
     }
 

@@ -43,7 +43,7 @@
     </graphics>
     <serial type='dev'>
       <source path='/dev/ttyS2,foo'/>
-      <target port='1'/>
+      <target/>
     </serial>
     <serial type='file'>
       <source path='/tmp/serial.log,foo' append='on'/>
