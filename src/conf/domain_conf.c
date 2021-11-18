@@ -19902,7 +19902,6 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
                                                        ctxt,
                                                        nodes[i],
                                                        flags);
-
         if (!chr)
             return NULL;
 
@@ -19911,7 +19910,7 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         // Giving precedence to the isa-serial device since
         // only limited ports can be used for such devices.
         if (chr->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
-            // Taking the isa serial deivces to start of the array.
+            // Taking the isa serial devices to start of the array.
             for (j = def->nserials; j > isa_serial_count; j--)
                 def->serials[j] = def->serials[j-1];
             def->serials[isa_serial_count++] = chr;
@@ -19919,13 +19918,13 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
 
         // Maintaining the buffer for first max_available_isa_serial_ports unused ports.
         if (chr->target.port != -1 && chr->target.port <= max_available_isa_serial_ports) {
-            if (used_serial_port_buffer & (1<<chr->target.port)) {
+            if (used_serial_port_buffer & (1 << chr->target.port)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                     _("target port [%d] already allocated."),
                     chr->target.port);
                 return NULL;
             }
-            used_serial_port_buffer |= 1<<chr->target.port;
+            used_serial_port_buffer |= 1 << chr->target.port;
         }
 
         // Update max serial port used.
@@ -19941,7 +19940,7 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         if (def->serials[i]->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
 
             // Search for the next available port.
-            while (used_serial_port_buffer & (1<<next_available_serial_port) &&
+            while (used_serial_port_buffer & (1 << next_available_serial_port) &&
                 next_available_serial_port <= max_available_isa_serial_ports) {
                 next_available_serial_port++;
             }
@@ -19955,7 +19954,7 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
                 return NULL;
             }
 
-            used_serial_port_buffer |= 1<<next_available_serial_port;
+            used_serial_port_buffer |= 1 << next_available_serial_port;
             def->serials[i]->target.port = next_available_serial_port;
 
             // Update max serial port used.
