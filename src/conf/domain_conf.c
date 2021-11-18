@@ -65,6 +65,7 @@
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
+#define max_available_isa_serial_ports 4
 
 VIR_LOG_INIT("conf.domain_conf");
 
@@ -19663,8 +19664,7 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     g_autofree xmlNodePtr *nodes = NULL;
     g_autofree char *tmp = NULL;
     g_autoptr(virDomainDef) def = NULL;
-    int max_available_isa_serial_ports = 4;
-    long long int used_serial_port_buffer = 0;
+    uint8_t used_serial_port_buffer = 0;
     int isa_serial_count = 0;
     int next_available_serial_port = 0;
     int max_serial_port = -1;
@@ -19936,7 +19936,6 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     // Assign the ports to the devices.
     for (i = 0; i < n; i++) {
         if (def->serials[i]->target.port != -1) continue;
-
         // Assign one of the unused ports from first max_available_isa_serial_ports ports
         // to isa-serial device.
         if (def->serials[i]->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
