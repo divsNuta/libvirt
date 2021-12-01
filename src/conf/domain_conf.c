@@ -65,6 +65,7 @@
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
+#define MAX_AVAILABLE_ISA_SERIAL_PORTS 4
 
 VIR_LOG_INIT("conf.domain_conf");
 
@@ -5323,6 +5324,58 @@ virDomainHostdevDefPostParse(virDomainHostdevDef *dev,
 }
 
 
+static int
+virDomainChrIsaSerialDefPostParse(virDomainDef *def)
+{
+    size_t i, j;
+    int isa_serial_count = 0;
+    int isa_device_index_arr[MAX_AVAILABLE_ISA_SERIAL_PORTS] = {0};
+    bool used_serial_port[MAX_AVAILABLE_ISA_SERIAL_PORTS] = {false};
+
+    for (i = 0; i < def->nserials; i++) {
+        if (def->serials[i]->targetType ==
+            VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
+            if (isa_serial_count >= MAX_AVAILABLE_ISA_SERIAL_PORTS) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("Maximum supported number of ISA serial ports is %d."),
+                    MAX_AVAILABLE_ISA_SERIAL_PORTS);
+                return -1;
+            }
+            isa_device_index_arr[isa_serial_count++] = i;
+        }
+        if (def->serials[i]->target.port != -1 &&
+            def->serials[i]->target.port < MAX_AVAILABLE_ISA_SERIAL_PORTS) {
+            if (!used_serial_port[def->serials[i]->target.port]) {
+                used_serial_port[def->serials[i]->target.port] = true;
+            } else{
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("target port [%d] already allocated."),
+                    def->serials[i]->target.port);
+                return -1;
+            }
+        }
+
+    }
+
+    /* Assign the ports to the devices. */
+    for (i = 0; i < isa_serial_count; i++) {
+        if (def->serials[isa_device_index_arr[i]]->target.port != -1) continue;
+        for (j = 0; j < MAX_AVAILABLE_ISA_SERIAL_PORTS; j++) {
+            if (!used_serial_port[j]) {
+                def->serials[isa_device_index_arr[i]]->target.port = j;
+                used_serial_port[def->serials[isa_device_index_arr[i]]->target.port] = true;
+                break;
+            }
+        }
+        if (def->serials[isa_device_index_arr[i]]->target.port == -1) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                _("out of ports for isa-serial device."));
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static void
 virDomainChrDefPostParse(virDomainChrDef *chr,
                          const virDomainDef *def)
@@ -6189,6 +6242,9 @@ virDomainDefPostParse(virDomainDef *def,
         if (virDomainDefPostParseCheckFailure(def, parseFlags, ret) < 0)
             goto cleanup;
     }
+
+    if (virDomainChrIsaSerialDefPostParse(def) < 0)
+            return -1;
 
     /* iterate the devices */
     ret = virDomainDeviceInfoIterateFlags(def,
@@ -19861,16 +19917,9 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         if (!chr)
             return NULL;
 
-        if (chr->target.port == -1) {
-            int maxport = -1;
-            for (j = 0; j < i; j++) {
-                if (def->serials[j]->target.port > maxport)
-                    maxport = def->serials[j]->target.port;
-            }
-            chr->target.port = maxport + 1;
-        }
         def->serials[def->nserials++] = chr;
     }
+
     VIR_FREE(nodes);
 
     if ((n = virXPathNodeSet("./devices/console", ctxt, &nodes)) < 0) {

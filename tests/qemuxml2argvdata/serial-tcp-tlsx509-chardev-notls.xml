@@ -30,7 +30,7 @@
     <serial type='udp'>
       <source mode='bind' host='127.0.0.1' service='1111'/>
       <source mode='connect' host='127.0.0.1' service='2222'/>
-      <target type='isa-serial' port='0'>
+      <target type='isa-serial' port='2'>
         <model name='isa-serial'/>
       </target>
     </serial>
@@ -41,10 +41,24 @@
         <model name='isa-serial'/>
       </target>
     </serial>
+    <serial type='tcp'>
+      <source mode='connect' host='127.0.0.1' service='5555' tls='no'/>
+      <protocol type='raw'/>
+      <target type='isa-serial' port='1'>
+        <model name='isa-serial'/>
+      </target>
+    </serial>
+    <serial type='tcp'>
+      <source mode='connect' host='127.0.0.1' service='5555' tls='no'/>
+      <protocol type='raw'/>
+      <target type='isa-serial' port='3'>
+        <model name='isa-serial'/>
+      </target>
+    </serial>
     <console type='udp'>
       <source mode='bind' host='127.0.0.1' service='1111'/>
       <source mode='connect' host='127.0.0.1' service='2222'/>
-      <target type='serial' port='0'/>
+      <target type='serial' port='2'/>
     </console>
     <input type='mouse' bus='ps2'/>
     <input type='keyboard' bus='ps2'/>
