@@ -10953,11 +10953,21 @@ qemuBuildSerialChrDeviceProps(const virDomainDef *def,
         return NULL;
     }
 
-    if (virJSONValueObjectAdd(&props,
-                              "s:driver", virDomainChrSerialTargetModelTypeToString(serial->targetModel),
-                              "s:chardev", chardev,
-                              "s:id", serial->info.alias,
-                              NULL) < 0)
+    if (serial->targetModel == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL &&
+                    serial->target.port != -1) {
+            if (virJSONValueObjectAdd(&props,
+                                 "s:driver", virDomainChrSerialTargetModelTypeToString(serial->targetModel),
+                                 "s:chardev", chardev,
+                                 "s:id", serial->info.alias,
+                                 "i:index", serial->target.port,
+                                 NULL) < 0)
+                    return NULL;
+    }
+    else if (virJSONValueObjectAdd(&props,
+                                 "s:driver", virDomainChrSerialTargetModelTypeToString(serial->targetModel),
+                                 "s:chardev", chardev,
+                                 "s:id", serial->info.alias,
+                                 NULL) < 0)
         return NULL;
 
     if (qemuBuildDeviceAddressProps(props, def, &serial->info) < 0)
