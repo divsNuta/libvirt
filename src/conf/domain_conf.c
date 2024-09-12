@@ -65,6 +65,7 @@
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
+#define max_available_isa_serial_ports 4
 
 VIR_LOG_INIT("conf.domain_conf");
 
@@ -19624,6 +19625,10 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     g_autofree xmlNodePtr *nodes = NULL;
     g_autofree char *tmp = NULL;
     g_autoptr(virDomainDef) def = NULL;
+    uint8_t used_serial_port_buffer = 0;
+    int isa_serial_count = 0;
+    int next_available_serial_port = 0;
+    int max_serial_port = -1;
 
     if (!(def = virDomainDefNew(xmlopt)))
         return NULL;
@@ -19861,16 +19866,67 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         if (!chr)
             return NULL;
 
-        if (chr->target.port == -1) {
-            int maxport = -1;
-            for (j = 0; j < i; j++) {
-                if (def->serials[j]->target.port > maxport)
-                    maxport = def->serials[j]->target.port;
-            }
-            chr->target.port = maxport + 1;
-        }
         def->serials[def->nserials++] = chr;
+
+        // Giving precedence to the isa-serial device since
+        // only limited ports can be used for such devices.
+        if (chr->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
+            // Taking the isa serial devices to start of the array.
+            for (j = def->nserials; j > isa_serial_count; j--)
+                def->serials[j] = def->serials[j-1];
+            def->serials[isa_serial_count++] = chr;
+        }
+
+        // Maintaining the buffer for first max_available_isa_serial_ports unused ports.
+        if (chr->target.port != -1 && chr->target.port <= max_available_isa_serial_ports) {
+            if (used_serial_port_buffer & (1 << chr->target.port)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("target port [%d] already allocated."),
+                    chr->target.port);
+                return NULL;
+            }
+            used_serial_port_buffer |= 1 << chr->target.port;
+        }
+
+        // Update max serial port used.
+        if (chr->target.port > max_serial_port)
+            max_serial_port = chr->target.port;
     }
+
+    // Assign the ports to the devices.
+    for (i = 0; i < n; i++) {
+        if (def->serials[i]->target.port != -1) continue;
+        // Assign one of the unused ports from first max_available_isa_serial_ports ports
+        // to isa-serial device.
+        if (def->serials[i]->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_SERIAL) {
+
+            // Search for the next available port.
+            while (used_serial_port_buffer & (1 << next_available_serial_port) &&
+                next_available_serial_port <= max_available_isa_serial_ports) {
+                next_available_serial_port++;
+            }
+
+            // qemu doesn't support more than max_available_isa_serial_ports isa devices.
+            if (i > max_available_isa_serial_ports ||
+                next_available_serial_port > max_available_isa_serial_ports) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("Maximum supported number of ISA serial ports is %d."),
+                    max_available_isa_serial_ports);
+                return NULL;
+            }
+
+            used_serial_port_buffer |= 1 << next_available_serial_port;
+            def->serials[i]->target.port = next_available_serial_port;
+
+            // Update max serial port used.
+            if (def->serials[i]->target.port > max_serial_port)
+                max_serial_port = def->serials[i]->target.port;
+
+        } else {
+            def->serials[i]->target.port = ++max_serial_port;
+        }
+    }
+
     VIR_FREE(nodes);
 
     if ((n = virXPathNodeSet("./devices/console", ctxt, &nodes)) < 0) {
